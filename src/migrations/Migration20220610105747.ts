@@ -11,7 +11,6 @@ export class Migration20220610105747 extends Migration {
     this.addSql('alter table "post" alter column "id" set default nextval(\'post_id_seq\');');
     this.addSql('alter table "post" add constraint "post_pkey" primary key ("id");');
   }
-
   async down(): Promise<void> {
     this.addSql('alter table "post" add column "_id" serial;');
     this.addSql('alter table "post" alter column "id" type varchar using ("id"::varchar);');
