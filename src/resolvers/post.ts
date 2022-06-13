@@ -36,16 +36,11 @@ export class PostResolver {
     @Arg('name', { nullable: true }) name: string,
     @Arg('email', { nullable: true }) email: string,
     @Arg('age', { nullable: true }) age: number,
-    @Arg('createdAt', { nullable: true }) createdAt: Date,
-    @Arg('updatedAt', { nullable: true }) updatedAt: Date,
     @Ctx() { em }: MyContext
   ): Promise<Post | null> {
     const post = await em.fork().findOne(Post, { id });
     if (!post) return null;
 
-    // const post = em
-    //   .fork()
-    //   .create(Post, { name, email, age, createdAt, updatedAt });
     if (typeof name !== null) {
       post.name = name;
       await em.fork().persistAndFlush(post);
