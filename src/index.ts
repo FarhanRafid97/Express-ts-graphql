@@ -13,7 +13,7 @@ import { createClient } from 'redis';
 import connectRedis from 'connect-redis';
 import { MyContext } from './types';
 import { ApolloServerPluginLandingPageGraphQLPlayground } from 'apollo-server-core';
-
+import cors from 'cors';
 const RedisStore = connectRedis(session);
 const redisClient = createClient({ legacyMode: true });
 redisClient.connect().catch(console.error);
@@ -22,6 +22,13 @@ const main = async () => {
   const orm = await MikroORM.init(microConfig);
   await orm.getMigrator().up();
   const app = express();
+
+  app.use(
+    cors({
+      origin: 'http://localhost:3000',
+      credentials: true,
+    })
+  );
 
   app.use(
     session({
@@ -42,22 +49,12 @@ const main = async () => {
     })
   );
 
-  // app.use(function (_, res, next) {
-  //   res.header(
-  //     'Access-Control-Allow-Origin',
-  //     'https://studio.apollographql.com'
-  //   );
-  //   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-  //   res.header('Access-Control-Allow-Headers', 'Content-Type,token');
-  //   next();
-  // });
   const appolloServer = new ApolloServer({
     schema: await buildSchema({
       resolvers: [HelloResolver, PostResolver, UserResolver],
       validate: false,
     }),
     plugins: [ApolloServerPluginLandingPageGraphQLPlayground()],
-    csrfPrevention: true,
 
     context: ({ req, res }): MyContext => ({ em: orm.em, req, res }),
   });
@@ -66,6 +63,7 @@ const main = async () => {
 
   appolloServer.applyMiddleware({
     app,
+    cors: false,
   });
   app.listen(4000, () => console.log('app listen to localhost:4000'));
 };

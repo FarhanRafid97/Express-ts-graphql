@@ -7,6 +7,7 @@ import {
   InputType,
   Mutation,
   ObjectType,
+  Query,
   Resolver,
 } from 'type-graphql';
 import { User } from '../entities/User';
@@ -19,7 +20,7 @@ import { User } from '../entities/User';
 
 declare module 'express-session' {
   interface SessionData {
-    userId: number | any;
+    userId?: number | any;
   }
 }
 @InputType()
@@ -50,12 +51,20 @@ class UserResponse {
 
 Resolver();
 export class UserResolver {
+  @Query(() => User, { nullable: true })
+  myBio(@Ctx() { req, em }: MyContext) {
+    console.log(req.session);
+    if (!req.session.userId) return null;
+    const myUser = em.fork().findOne(User, { id: req.session.userId });
+
+    return myUser;
+  }
   @Mutation(() => UserResponse)
   async createUser(
     @Arg('option') option: UsernamePasswordInput,
     @Arg('createdAt', { nullable: true }) createdAt: Date,
     @Arg('updatedAt', { nullable: true }) updatedAt: Date,
-    @Ctx() { em }: MyContext
+    @Ctx() { req, em }: MyContext
   ): Promise<UserResponse> {
     if (option.username.length <= 2) {
       return {
@@ -102,6 +111,7 @@ export class UserResolver {
         };
       }
     }
+    req.session.userId = user.id;
     return { user };
   }
   @Mutation(() => UserResponse)
