@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { MikroORM } from '@mikro-orm/core';
-import { __prod__ } from './constants';
+import { COOKIE_NAME, __prod__ } from './constants';
 import microConfig from './mikro-orm.config';
 import express from 'express';
 import { ApolloServer } from 'apollo-server-express';
@@ -14,15 +14,17 @@ import connectRedis from 'connect-redis';
 import { MyContext } from './types';
 import { ApolloServerPluginLandingPageGraphQLPlayground } from 'apollo-server-core';
 import cors from 'cors';
+import Redis from 'ioredis';
+
 const RedisStore = connectRedis(session);
 const redisClient = createClient({ legacyMode: true });
 redisClient.connect().catch(console.error);
-
+const redis = new Redis();
 const main = async () => {
   const orm = await MikroORM.init(microConfig);
+
   await orm.getMigrator().up();
   const app = express();
-
   app.use(
     cors({
       origin: 'http://localhost:3000',
@@ -32,7 +34,7 @@ const main = async () => {
 
   app.use(
     session({
-      name: 'qid',
+      name: COOKIE_NAME,
       store: new RedisStore({
         client: redisClient as any,
         disableTouch: true,
@@ -56,7 +58,7 @@ const main = async () => {
     }),
     plugins: [ApolloServerPluginLandingPageGraphQLPlayground()],
 
-    context: ({ req, res }): MyContext => ({ em: orm.em, req, res }),
+    context: ({ req, res }): MyContext => ({ em: orm.em, req, res, redis }),
   });
 
   await appolloServer.start();
