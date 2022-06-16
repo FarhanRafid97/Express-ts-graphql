@@ -1,2 +1,2 @@
 # learning-fullstack-ts
-React GraphQL TypeScript 
+Express GraphQL TypeScript 
