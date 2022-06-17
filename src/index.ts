@@ -25,7 +25,7 @@ redisClient.connect().catch(console.error);
 const redis = new Redis();
 
 const main = async () => {
-  const con = await createConnection({
+  await createConnection({
     type: 'postgres',
     database: 'liredit2',
     username: 'farhan_binar',

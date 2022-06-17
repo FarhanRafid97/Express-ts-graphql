@@ -1,47 +1,91 @@
 import { Post } from '../entities/Post';
 
-import { Arg, Mutation, Query, Resolver } from 'type-graphql';
+import {
+  Arg,
+  Ctx,
+  Field,
+  InputType,
+  Mutation,
+  Query,
+  Resolver,
+  UseMiddleware,
+} from 'type-graphql';
+import { MyContext } from 'src/types';
+import { isAuth } from '../middleware/isAuth';
+import { getConnection } from 'typeorm';
+
+@InputType()
+class FieldInput {
+  @Field()
+  title: string;
+  @Field()
+  text: string;
+}
 
 Resolver();
 export class PostResolver {
+  //=== All post
   @Query(() => [Post])
-  posts(): Promise<Post[]> {
-    return Post.find();
+  // @UseMiddleware(isAuth)
+  async posts(
+    @Arg('limit') limit: number,
+    @Arg('cursor', () => String, { nullable: true }) cursor: string | null
+  ): Promise<Post[]> {
+    const realLimit = Math.min(50, limit);
+    const queryBuilder = getConnection()
+      .getRepository(Post)
+      .createQueryBuilder('p')
+      .orderBy('"createdAt"', 'DESC')
+      .take(realLimit);
+
+    if (cursor) {
+      queryBuilder.where('"createdAt" < :cursor', {
+        cursor: new Date(cursor),
+      });
+    }
+
+    return queryBuilder.getMany();
   }
+
+  //====detail post
   @Query(() => Post, { nullable: true })
+  @UseMiddleware(isAuth)
   post(@Arg('id') id: number): Promise<Post | null> {
     return Post.findOne({ where: { id: id } });
   }
+
+  //==create post
+
   @Mutation(() => Post)
+  @UseMiddleware(isAuth)
   async createPost(
-    @Arg('name') name: string,
-    @Arg('email') email: string,
-    @Arg('age') age: number
+    @Arg('input') input: FieldInput,
+    @Ctx() { req }: MyContext
   ): Promise<Post> {
-    return await Post.create({ name, email, age }).save();
+    return await Post.create({
+      ...input,
+      creatorId: req.session.userId,
+    }).save();
   }
+
+  //=======
+
+  //====UPdate Post
+
   @Mutation(() => Post, { nullable: true })
   async updatePost(
-    @Arg('id', { nullable: true }) id: number,
-    @Arg('name', { nullable: true }) name: string,
-    @Arg('email', { nullable: true }) email: string,
-    @Arg('age', { nullable: true }) age: number
+    @Arg('id') id: number,
+    @Arg('input') input: FieldInput
   ): Promise<Post | null> {
     const post = await Post.findOne({ where: { id: id } });
     if (!post) return null;
 
-    if (typeof name !== null) {
-      post.name = name;
-    } else if (typeof email !== null) {
-      post.email = email;
-    } else if (typeof age !== null) {
-      post.age = age;
-    }
-    await Post.update({ id }, post);
+    await Post.update({ id }, { ...input });
 
     return post;
   }
 
+  //====Delete post
   @Mutation(() => String)
   async deletePost(@Arg('id') id: number): Promise<string> {
     const data = await Post.findOne({ where: { id } });
