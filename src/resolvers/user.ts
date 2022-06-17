@@ -10,12 +10,13 @@ import {
   Resolver,
 } from 'type-graphql';
 import { User } from '../entities/User';
-import { EntityManager } from '@mikro-orm/postgresql';
+
 import { COOKIE_NAME, FORGET_PASSWORD_PREFIX, THREE_DAYS } from '../constants';
 import { UsernamePasswordInput } from './UsernamePasswordInput';
 import { validateRegister } from '../utils/validateRegister';
 import { v4 } from 'uuid';
 import { sendEmail } from '../utils/sendEmail';
+// import { getConnection } from 'typeorm';
 // declare module 'express-session' {
 //   export interface SessionData {
 //     userId: { [key: string]: any };
@@ -44,6 +45,13 @@ class UserResponse {
   @Field(() => User, { nullable: true })
   user?: User;
 }
+@ObjectType()
+class EmailResponse {
+  @Field(() => [FieldError], { nullable: true })
+  error?: FieldError[];
+  @Field(() => String, { nullable: true })
+  linkEmail?: String | Boolean;
+}
 
 Resolver();
 export class UserResolver {
@@ -51,7 +59,7 @@ export class UserResolver {
   async changePassword(
     @Arg('token') token: string,
     @Arg('newPassword') newPassword: string,
-    @Ctx() { em, redis }: MyContext
+    @Ctx() { redis, req }: MyContext
   ): Promise<UserResponse> {
     if (newPassword.length <= 2) {
       return {
@@ -64,7 +72,9 @@ export class UserResolver {
         ],
       };
     }
-    const userId = await redis.get(FORGET_PASSWORD_PREFIX + token);
+    const key = FORGET_PASSWORD_PREFIX + token;
+    const userId = await redis.get(key);
+
     if (!userId) {
       return {
         error: [
@@ -76,7 +86,8 @@ export class UserResolver {
         ],
       };
     }
-    const user = await em.fork().findOne(User, { id: parseInt(userId) });
+    const userIdNum = parseInt(userId);
+    const user = await User.findOne({ where: { id: userIdNum } });
     if (!user) {
       return {
         error: [
@@ -88,19 +99,31 @@ export class UserResolver {
         ],
       };
     }
-    user.password = await argon2.hash(newPassword);
-    await em.fork().persistAndFlush(user);
 
+    await User.update(
+      { id: userIdNum },
+      { password: await argon2.hash(newPassword) }
+    );
+    redis.del(key);
+    req.session.userId = user.id;
     return { user };
   }
-  @Mutation(() => Boolean)
+  @Mutation(() => EmailResponse)
   async forgetPassword(
     @Arg('email') email: string,
-    @Ctx() { em, redis }: MyContext
-  ): Promise<Boolean> {
-    const user = await em.fork().findOne(User, { email });
+    @Ctx() { redis }: MyContext
+  ): Promise<Boolean | EmailResponse> {
+    const user = await User.findOne({ where: { email: email } });
     if (!user) {
-      return true;
+      return {
+        error: [
+          {
+            field: 'email',
+            message: 'email not found',
+            status: 400,
+          },
+        ],
+      };
     }
 
     const token = v4();
@@ -110,25 +133,25 @@ export class UserResolver {
       'EX',
       THREE_DAYS
     );
-    await sendEmail(
+    const emailSend = await sendEmail(
       email,
       `<a href="http://localhost:3000/change-password/${token}">reset password</a>`
     );
-    return true;
+    return { linkEmail: emailSend };
   }
 
   @Query(() => User, { nullable: true })
-  myBio(@Ctx() { req, em }: MyContext) {
+  myBio(@Ctx() { req }: MyContext) {
     console.log(req.session);
     if (!req.session.userId) return null;
-    const myUser = em.fork().findOne(User, { id: req.session.userId });
 
-    return myUser;
+    return User.findOne({ where: { id: req.session.userId } });
   }
+
   @Mutation(() => UserResponse)
   async createUser(
     @Arg('option') option: UsernamePasswordInput,
-    @Ctx() { req, em }: MyContext
+    @Ctx() { req }: MyContext
   ): Promise<UserResponse> {
     const error = validateRegister(option);
     if (error) {
@@ -137,20 +160,28 @@ export class UserResolver {
     const hashPassword = await argon2.hash(option.password);
     let user;
     try {
-      const result = await (em.fork() as EntityManager)
-        .createQueryBuilder(User)
-        .getKnexQuery()
-        .insert({
-          username: option.username,
-          password: hashPassword,
-          email: option.email,
-          created_at: new Date(),
-          updated_at: new Date(),
-        })
-        .returning('*');
-      user = result[0];
+      const result = await User.create({
+        username: option.username,
+        email: option.email,
+        password: hashPassword,
+      }).save();
+      // === Query builder
+      // const result = await getConnection()
+      //   .createQueryBuilder()
+      //   .insert()
+      //   .into(User)
+      //   .values({
+      // username: option.username,
+      // email: option.email,
+      // password: hashPassword,
+      //   })
+      //   .returning('*')
+      //   .execute();
+      console.log(result);
+      req.session.userId = result.id;
+      user = result;
     } catch (err) {
-      if (err.constraint === 'user_username_unique') {
+      if (err.constraint === 'UQ_78a916df40e02a9deb1c4b75edb') {
         return {
           error: [
             {
@@ -161,7 +192,7 @@ export class UserResolver {
           ],
         };
       }
-      if (err.constraint === 'user_email_unique') {
+      if (err.constraint === 'UQ_e12875dfb3b1d92d7d7c5377e22') {
         return {
           error: [
             {
@@ -174,23 +205,19 @@ export class UserResolver {
       }
     }
 
-    req.session.userId = user.id;
     return { user };
   }
   @Mutation(() => UserResponse)
   async loginUser(
     @Arg('usernameOrEmail') usernameOrEmail: string,
     @Arg('password') password: string,
-    @Ctx() { em, req }: MyContext
+    @Ctx() { req }: MyContext
   ): Promise<UserResponse> {
-    const user = await em
-      .fork()
-      .findOne(
-        User,
-        usernameOrEmail.includes('@')
-          ? { email: usernameOrEmail }
-          : { username: usernameOrEmail }
-      );
+    const user = await User.findOne(
+      usernameOrEmail.includes('@')
+        ? { where: { email: usernameOrEmail } }
+        : { where: { username: usernameOrEmail } }
+    );
     if (!user) {
       return {
         error: [

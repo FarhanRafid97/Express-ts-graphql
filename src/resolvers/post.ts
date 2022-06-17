@@ -1,68 +1,52 @@
 import { Post } from '../entities/Post';
-import { MyContext } from 'src/types';
-import { Arg, Ctx, Int, Mutation, Query, Resolver } from 'type-graphql';
+
+import { Arg, Mutation, Query, Resolver } from 'type-graphql';
 
 Resolver();
 export class PostResolver {
   @Query(() => [Post])
-  posts(@Ctx() { em }: MyContext): Promise<Post[]> {
-    return em.fork().find(Post, {});
+  posts(): Promise<Post[]> {
+    return Post.find();
   }
   @Query(() => Post, { nullable: true })
-  post(
-    @Arg('id', () => Int) id: number,
-    @Ctx() { em }: MyContext
-  ): Promise<Post | null> {
-    return em.fork().findOne(Post, { id });
+  post(@Arg('id') id: number): Promise<Post | null> {
+    return Post.findOne({ where: { id: id } });
   }
   @Mutation(() => Post)
   async createPost(
     @Arg('name') name: string,
     @Arg('email') email: string,
-    @Arg('age') age: number,
-    @Arg('createdAt', { nullable: true }) createdAt: Date,
-    @Arg('updatedAt', { nullable: true }) updatedAt: Date,
-    @Ctx() { em }: MyContext
+    @Arg('age') age: number
   ): Promise<Post> {
-    const post = em
-      .fork()
-      .create(Post, { name, email, age, createdAt, updatedAt });
-    await em.fork().persistAndFlush(post);
-    return post;
+    return await Post.create({ name, email, age }).save();
   }
   @Mutation(() => Post, { nullable: true })
   async updatePost(
     @Arg('id', { nullable: true }) id: number,
     @Arg('name', { nullable: true }) name: string,
     @Arg('email', { nullable: true }) email: string,
-    @Arg('age', { nullable: true }) age: number,
-    @Ctx() { em }: MyContext
+    @Arg('age', { nullable: true }) age: number
   ): Promise<Post | null> {
-    const post = await em.fork().findOne(Post, { id });
+    const post = await Post.findOne({ where: { id: id } });
     if (!post) return null;
 
     if (typeof name !== null) {
       post.name = name;
-      await em.fork().persistAndFlush(post);
     } else if (typeof email !== null) {
       post.email = email;
-      await em.fork().persistAndFlush(post);
     } else if (typeof age !== null) {
       post.age = age;
-      await em.fork().persistAndFlush(post);
     }
+    await Post.update({ id }, post);
 
     return post;
   }
 
   @Mutation(() => String)
-  async deletePost(
-    @Arg('id') id: number,
-    @Ctx() { em }: MyContext
-  ): Promise<string> {
-    const data = await em.fork().findOne(Post, { id });
+  async deletePost(@Arg('id') id: number): Promise<string> {
+    const data = await Post.findOne({ where: { id } });
     if (!data) return 'data tidak ada';
-    await em.nativeDelete(Post, { id });
+    await Post.delete(id);
 
     return 'data berhasil di hapus';
   }
