@@ -5,10 +5,13 @@ import {
   Ctx,
   Field,
   InputType,
+  Int,
   Mutation,
   Query,
   Resolver,
   UseMiddleware,
+  // FieldResolver,
+  // Root,
 } from 'type-graphql';
 import { MyContext } from 'src/types';
 import { isAuth } from '../middleware/isAuth';
@@ -24,11 +27,15 @@ class FieldInput {
 
 Resolver();
 export class PostResolver {
+  // @FieldResolver(() => String)
+  // textSnippet(@Root() post: Post) {
+  //   return post.text.slice(0, 50);
+  // }
   //=== All post
   @Query(() => [Post])
   // @UseMiddleware(isAuth)
   async posts(
-    @Arg('limit') limit: number,
+    @Arg('limit', () => Int) limit: number,
     @Arg('cursor', () => String, { nullable: true }) cursor: string | null
   ): Promise<Post[]> {
     const realLimit = Math.min(50, limit);
