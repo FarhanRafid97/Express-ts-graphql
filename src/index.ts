@@ -18,6 +18,7 @@ import Redis from 'ioredis';
 import { createConnection } from 'typeorm';
 import { ResolverUser, User } from './entities/User';
 import { Post } from './entities/Post';
+import { Updoot } from './entities/Updoot';
 
 const RedisStore = connectRedis(session);
 const redisClient = createClient({ legacyMode: true });
@@ -32,7 +33,7 @@ const main = async () => {
     password: 'farhan322',
     logging: true,
     synchronize: true,
-    entities: [User, Post],
+    entities: [User, Post, Updoot],
   });
 
   const app = express();
