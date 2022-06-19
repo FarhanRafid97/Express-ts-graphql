@@ -16,7 +16,7 @@ import { ApolloServerPluginLandingPageGraphQLPlayground } from 'apollo-server-co
 import cors from 'cors';
 import Redis from 'ioredis';
 import { createConnection } from 'typeorm';
-import { User } from './entities/User';
+import { ResolverUser, User } from './entities/User';
 import { Post } from './entities/Post';
 
 const RedisStore = connectRedis(session);
@@ -64,7 +64,7 @@ const main = async () => {
 
   const appolloServer = new ApolloServer({
     schema: await buildSchema({
-      resolvers: [HelloResolver, PostResolver, UserResolver],
+      resolvers: [HelloResolver, PostResolver, UserResolver, ResolverUser],
       validate: false,
     }),
     plugins: [ApolloServerPluginLandingPageGraphQLPlayground()],

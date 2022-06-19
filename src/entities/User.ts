@@ -1,4 +1,12 @@
-import { Field, ObjectType } from 'type-graphql';
+import { MyContext } from 'src/types';
+import {
+  Ctx,
+  Field,
+  FieldResolver,
+  ObjectType,
+  Resolver,
+  Root,
+} from 'type-graphql';
 import {
   BaseEntity,
   Column,
@@ -38,4 +46,16 @@ export class User extends BaseEntity {
 
   @Column()
   password!: string;
+}
+
+@Resolver(User)
+export class ResolverUser {
+  @FieldResolver(() => String)
+  email(@Root() user: User, @Ctx() { req }: MyContext) {
+    if (req.session.userId === user.id) {
+      return user.email;
+    }
+
+    return '';
+  }
 }

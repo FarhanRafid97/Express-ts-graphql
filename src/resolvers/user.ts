@@ -16,12 +16,6 @@ import { UsernamePasswordInput } from './UsernamePasswordInput';
 import { validateRegister } from '../utils/validateRegister';
 import { v4 } from 'uuid';
 import { sendEmail } from '../utils/sendEmail';
-// import { getConnection } from 'typeorm';
-// declare module 'express-session' {
-//   export interface SessionData {
-//     userId: { [key: string]: any };
-//   }
-// }
 
 declare module 'express-session' {
   interface SessionData {

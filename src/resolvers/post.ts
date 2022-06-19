@@ -7,6 +7,7 @@ import {
   InputType,
   Int,
   Mutation,
+  ObjectType,
   Query,
   Resolver,
   UseMiddleware,
@@ -25,6 +26,14 @@ class FieldInput {
   text: string;
 }
 
+@ObjectType()
+class PaginatedPosts {
+  @Field(() => [Post])
+  posts: Post[];
+  @Field(() => Boolean)
+  isMorePost: boolean;
+}
+
 Resolver();
 export class PostResolver {
   // @FieldResolver(() => String)
@@ -32,26 +41,59 @@ export class PostResolver {
   //   return post.text.slice(0, 50);
   // }
   //=== All post
-  @Query(() => [Post])
+  @Query(() => PaginatedPosts)
   // @UseMiddleware(isAuth)
   async posts(
     @Arg('limit', () => Int) limit: number,
     @Arg('cursor', () => String, { nullable: true }) cursor: string | null
-  ): Promise<Post[]> {
+  ): Promise<PaginatedPosts> {
     const realLimit = Math.min(50, limit);
-    const queryBuilder = getConnection()
-      .getRepository(Post)
-      .createQueryBuilder('p')
-      .orderBy('"createdAt"', 'DESC')
-      .take(realLimit);
+    const realLimitPlustOne = realLimit + 1;
+
+    const replacements: any[] = [realLimitPlustOne];
 
     if (cursor) {
-      queryBuilder.where('"createdAt" < :cursor', {
-        cursor: new Date(cursor),
-      });
+      replacements.push(new Date(parseInt(cursor)));
     }
 
-    return queryBuilder.getMany();
+    const posts = await getConnection().query(
+      `
+    select p.*,
+    json_build_object(
+      'id', u.id,
+      'username', u.username,
+      'email', u.email,
+      'createdAt', u."createdAt",
+      'updatedAt', u."updatedAt"
+      ) creator
+    from post p
+    inner join public.user u on u.id = p."creatorId"
+    ${cursor ? `where p."createdAt" < $2` : ''}
+    order by p."createdAt" DESC
+    limit $1
+    `,
+      replacements
+    );
+
+    // );
+    // const queryBuilder = getConnection()
+    //   .getRepository(Post)
+    //   .createQueryBuilder('p')
+    //   .orderBy('"createdAt"', 'DESC')
+    //   .take(realLimitPlustOne);
+
+    // if (cursor) {
+    //   queryBuilder.where('"createdAt" < :cursor', {
+    //     cursor: new Date(cursor),
+    //   });
+    // }
+    // const posts = await queryBuilder.getMany();
+    console.log('posts: ', posts);
+
+    return {
+      posts: posts.slice(0, realLimit),
+      isMorePost: posts.length === realLimitPlustOne,
+    };
   }
 
   //====detail post
