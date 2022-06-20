@@ -1,4 +1,13 @@
-import { Field, Int, ObjectType } from 'type-graphql';
+import { MyContext } from 'src/types';
+import {
+  Ctx,
+  Field,
+  FieldResolver,
+  Int,
+  ObjectType,
+  Resolver,
+  Root,
+} from 'type-graphql';
 import {
   PrimaryGeneratedColumn,
   Column,
@@ -52,4 +61,12 @@ export class Post extends BaseEntity {
   @Field()
   @ManyToOne(() => User, (user) => user.posts)
   creator!: User;
+}
+
+@Resolver(Post)
+export class ResolverPostRoot {
+  @FieldResolver(() => User)
+  creator(@Root() post: Post, @Ctx() { userLoader }: MyContext) {
+    return userLoader.load(post?.creatorId as number);
+  }
 }

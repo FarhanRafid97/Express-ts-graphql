@@ -17,8 +17,9 @@ import cors from 'cors';
 import Redis from 'ioredis';
 import { createConnection } from 'typeorm';
 import { ResolverUser, User } from './entities/User';
-import { Post } from './entities/Post';
+import { Post, ResolverPostRoot } from './entities/Post';
 import { Updoot } from './entities/Updoot';
+import { createUserLoader } from './utils/createUserLoader';
 
 const RedisStore = connectRedis(session);
 const redisClient = createClient({ legacyMode: true });
@@ -65,12 +66,23 @@ const main = async () => {
 
   const appolloServer = new ApolloServer({
     schema: await buildSchema({
-      resolvers: [HelloResolver, PostResolver, UserResolver, ResolverUser],
+      resolvers: [
+        HelloResolver,
+        PostResolver,
+        UserResolver,
+        ResolverUser,
+        ResolverPostRoot,
+      ],
       validate: false,
     }),
     plugins: [ApolloServerPluginLandingPageGraphQLPlayground()],
 
-    context: ({ req, res }): MyContext => ({ req, res, redis }),
+    context: ({ req, res }): MyContext => ({
+      req,
+      res,
+      redis,
+      userLoader: createUserLoader(),
+    }),
   });
 
   await appolloServer.start();
