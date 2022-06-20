@@ -100,55 +100,27 @@ export class PostResolver {
   // @UseMiddleware(isAuth)
   async posts(
     @Arg('limit', () => Int) limit: number,
-    @Arg('cursor', () => String, { nullable: true }) cursor: string | null,
-    @Ctx() { req }: MyContext
+    @Arg('cursor', () => String, { nullable: true }) cursor: string | null
   ): Promise<PaginatedPosts> {
     const realLimit = Math.min(50, limit);
     const realLimitPlustOne = realLimit + 1;
 
     const replacements: any[] = [realLimitPlustOne];
 
-    if (req.session.userId) {
-      replacements.push(req.session.userId);
-    }
-
-    let cursorIdx = 3;
     if (cursor) {
       replacements.push(new Date(cursor));
-      cursorIdx = replacements.length;
     }
 
-    console.log(cursorIdx);
     const posts = await getConnection().query(
       `
-    select p.*,
-    ${
-      req.session.userId
-        ? '(select value from updoot where "userId" = $2 and "postId" = p.id) "voteStatus"'
-        : 'null as "voteStatus"'
-    }
+    select p.*
     from post p
-    ${cursor ? `where p."createdAt" < $${cursorIdx}` : ''}
+    ${cursor ? `where p."createdAt" < $2` : ''}
     order by p."createdAt" DESC
     limit $1
     `,
       replacements
     );
-
-    // );
-    // const queryBuilder = getConnection()
-    //   .getRepository(Post)
-    //   .createQueryBuilder('p')
-    //   .orderBy('"createdAt"', 'DESC')
-    //   .take(realLimitPlustOne);
-
-    // if (cursor) {
-    //   queryBuilder.where('"createdAt" < :cursor', {
-    //     cursor: new Date(cursor),
-    //   });
-    // }
-    // const posts = await queryBuilder.getMany();
-
     return {
       posts: posts.slice(0, realLimit),
       isMorePost: posts.length === realLimitPlustOne,

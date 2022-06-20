@@ -1,37 +1,35 @@
-import 'reflect-metadata';
-
-import { COOKIE_NAME, __prod__ } from './constants';
-
-import express from 'express';
+import { ApolloServerPluginLandingPageGraphQLPlayground } from 'apollo-server-core';
 import { ApolloServer } from 'apollo-server-express';
+import 'dotenv-safe/config';
+import connectRedis from 'connect-redis';
+import cors from 'cors';
+import express from 'express';
+import session from 'express-session';
+import Redis from 'ioredis';
+import { createClient } from 'redis';
+import 'reflect-metadata';
 import { buildSchema } from 'type-graphql';
+import { createConnection } from 'typeorm';
+import { COOKIE_NAME, __prod__ } from './constants';
+import { Post, ResolverPostRoot } from './entities/Post';
+import { Updoot } from './entities/Updoot';
+import { ResolverUser, User } from './entities/User';
 import { HelloResolver } from './resolvers/hello';
 import { PostResolver } from './resolvers/post';
 import { UserResolver } from './resolvers/user';
-import session from 'express-session';
-import { createClient } from 'redis';
-import connectRedis from 'connect-redis';
 import { MyContext } from './types';
-import { ApolloServerPluginLandingPageGraphQLPlayground } from 'apollo-server-core';
-import cors from 'cors';
-import Redis from 'ioredis';
-import { createConnection } from 'typeorm';
-import { ResolverUser, User } from './entities/User';
-import { Post, ResolverPostRoot } from './entities/Post';
-import { Updoot } from './entities/Updoot';
+import { createUpdootLoader } from './utils/createUpdootLoader';
 import { createUserLoader } from './utils/createUserLoader';
 
 const RedisStore = connectRedis(session);
 const redisClient = createClient({ legacyMode: true });
 redisClient.connect().catch(console.error);
-const redis = new Redis();
+const redis = new Redis(process.env.REDIS_URL);
 
 const main = async () => {
   await createConnection({
     type: 'postgres',
-    database: 'liredit2',
-    username: 'farhan_binar',
-    password: 'farhan322',
+    url: process.env.DATABASE_URL,
     logging: true,
     synchronize: true,
     entities: [User, Post, Updoot],
@@ -40,7 +38,7 @@ const main = async () => {
   const app = express();
   app.use(
     cors({
-      origin: 'http://localhost:3000',
+      origin: process.env.CORS,
       credentials: true,
     })
   );
@@ -59,7 +57,7 @@ const main = async () => {
         secure: __prod__,
       },
       saveUninitialized: false,
-      secret: 'keyboard cat',
+      secret: process.env.SESSION_SECRET,
       resave: false,
     })
   );
@@ -82,6 +80,7 @@ const main = async () => {
       res,
       redis,
       userLoader: createUserLoader(),
+      updootLoader: createUpdootLoader(),
     }),
   });
 
@@ -91,7 +90,9 @@ const main = async () => {
     app,
     cors: false,
   });
-  app.listen(4000, () => console.log('app listen to localhost:4000'));
+  app.listen(parseInt(process.env.PORT), () =>
+    console.log('app listen to localhost:4000')
+  );
 };
 
 main().catch((err) => {

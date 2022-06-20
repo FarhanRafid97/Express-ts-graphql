@@ -9,13 +9,12 @@ import {
   Query,
   Resolver,
 } from 'type-graphql';
-import { User } from '../entities/User';
-
-import { COOKIE_NAME, FORGET_PASSWORD_PREFIX, THREE_DAYS } from '../constants';
-import { UsernamePasswordInput } from './UsernamePasswordInput';
-import { validateRegister } from '../utils/validateRegister';
 import { v4 } from 'uuid';
+import { COOKIE_NAME, FORGET_PASSWORD_PREFIX, THREE_DAYS } from '../constants';
+import { User } from '../entities/User';
 import { sendEmail } from '../utils/sendEmail';
+import { validateRegister } from '../utils/validateRegister';
+import { UsernamePasswordInput } from './UsernamePasswordInput';
 
 declare module 'express-session' {
   interface SessionData {
