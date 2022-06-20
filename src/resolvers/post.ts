@@ -1,5 +1,4 @@
-import { Post } from '../entities/Post';
-
+import { MyContext } from 'src/types';
 import {
   Arg,
   Ctx,
@@ -11,13 +10,11 @@ import {
   Query,
   Resolver,
   UseMiddleware,
-  // FieldResolver,
-  // Root,
 } from 'type-graphql';
-import { MyContext } from 'src/types';
-import { isAuth } from '../middleware/isAuth';
 import { getConnection } from 'typeorm';
+import { Post } from '../entities/Post';
 import { Updoot } from '../entities/Updoot';
+import { isAuth } from '../middleware/isAuth';
 
 @InputType()
 class FieldInput {
@@ -192,19 +189,27 @@ export class PostResolver {
 
   //=======
 
-  //====UPdate Post
+  //====UPdate Post`
 
   @Mutation(() => Post, { nullable: true })
   async updatePost(
-    @Arg('id') id: number,
-    @Arg('input') input: FieldInput
+    @Arg('id', () => Int) id: number,
+    @Arg('title') title: string,
+    @Arg('text') text: string,
+    @Ctx() { req }: MyContext
   ): Promise<Post | null> {
-    const post = await Post.findOne({ where: { id: id } });
-    if (!post) return null;
-
-    await Post.update({ id }, { ...input });
-
-    return post;
+    const result = await getConnection()
+      .createQueryBuilder()
+      .update(Post)
+      .set({ title, text })
+      .where('id = :id and "creatorId" = :creatorId', {
+        id,
+        creatorId: req.session.userId,
+      })
+      .returning('*')
+      .execute();
+    console.log(result.raw[0]);
+    return result.raw[0];
   }
 
   //====Delete post
