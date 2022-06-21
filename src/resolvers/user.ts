@@ -4,14 +4,19 @@ import {
   Arg,
   Ctx,
   Field,
+  InputType,
   Mutation,
   ObjectType,
   Query,
   Resolver,
+  UseMiddleware,
 } from 'type-graphql';
 import { v4 } from 'uuid';
 import { COOKIE_NAME, FORGET_PASSWORD_PREFIX, THREE_DAYS } from '../constants';
+import { Post } from '../entities/Post';
+import { Profile } from '../entities/Profile';
 import { User } from '../entities/User';
+import { isAuth } from '../middleware/isAuth';
 import { sendEmail } from '../utils/sendEmail';
 import { validateRegister } from '../utils/validateRegister';
 import { UsernamePasswordInput } from './UsernamePasswordInput';
@@ -46,8 +51,46 @@ class EmailResponse {
   linkEmail?: String | Boolean;
 }
 
+@InputType()
+class InputProfile {
+  @Field()
+  address: string;
+  @Field()
+  phoneNumber: string;
+  @Field()
+  gender: string;
+}
+
 Resolver();
 export class UserResolver {
+  @Query(() => [User], { nullable: true })
+  async selectAllUser(): Promise<User[]> {
+    const dataUser = await Post.find();
+    console.log(dataUser);
+    const userFind = await User.find({ relations: { profile: true } });
+    console.log(dataUser);
+    return userFind;
+  }
+  @Mutation(() => Profile)
+  @UseMiddleware(isAuth)
+  async updateProfile(
+    @Arg('input') input: InputProfile,
+    @Ctx() { req }: MyContext
+  ): Promise<Profile | null> {
+    const user = await User.findOne({
+      where: { id: req.session.userId },
+      select: ['profileId'],
+    });
+
+    await Profile.update({ id: user?.profileId }, { ...input });
+    const updatedUser = await User.findOne({
+      where: { id: req.session.userId },
+      relations: { profile: true },
+    });
+    console.log(updatedUser);
+    return await Profile.findOne({ where: { id: user?.profileId } });
+  }
+
   @Mutation(() => UserResponse)
   async changePassword(
     @Arg('token') token: string,
@@ -134,11 +177,30 @@ export class UserResolver {
   }
 
   @Query(() => User, { nullable: true })
-  myBio(@Ctx() { req }: MyContext) {
+  async myBio(@Ctx() { req }: MyContext) {
     console.log(req.session);
     if (!req.session.userId) return null;
 
-    return User.findOne({ where: { id: req.session.userId } });
+    const dataUser = await User.findOne({
+      where: { id: req.session.userId },
+      relations: {
+        profile: true,
+      },
+    });
+    console.log(dataUser);
+    // if (!dataUser?.profile) {
+    //   const dataProfile = await Profile.create({
+    //     address: '',
+    //     gender: '',
+    //     phoneNumber: '',
+    //   }).save();
+    //   await User.update(
+    //     { id: req.session.userId },
+    //     { profileId: dataProfile.id }
+    //   );
+    // }
+
+    return dataUser;
   }
 
   @Mutation(() => UserResponse)
@@ -158,20 +220,14 @@ export class UserResolver {
         email: option.email,
         password: hashPassword,
       }).save();
-      // === Query builder
-      // const result = await getConnection()
-      //   .createQueryBuilder()
-      //   .insert()
-      //   .into(User)
-      //   .values({
-      // username: option.username,
-      // email: option.email,
-      // password: hashPassword,
-      //   })
-      //   .returning('*')
-      //   .execute();
       console.log(result);
       req.session.userId = result.id;
+      const dataProfile = await Profile.create({
+        address: '',
+        gender: '',
+        phoneNumber: '',
+      }).save();
+      await User.update({ id: result.id }, { profileId: dataProfile.id });
       user = result;
     } catch (err) {
       if (err.constraint === 'UQ_78a916df40e02a9deb1c4b75edb') {
@@ -235,6 +291,14 @@ export class UserResolver {
         ],
       };
     }
+    // if (!user.profileId) {
+    //   const dataProfile = await Profile.create({
+    //     address: '',
+    //     gender: '',
+    //     phoneNumber: '',
+    //   }).save();
+    //   await User.update({ id: user.id }, { profileId: dataProfile.id });
+    // }
     req.session.userId = user.id;
     return {
       user,

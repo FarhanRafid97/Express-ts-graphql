@@ -12,6 +12,7 @@ import { buildSchema } from 'type-graphql';
 import { createConnection } from 'typeorm';
 import { COOKIE_NAME, __prod__ } from './constants';
 import { Post, ResolverPostRoot } from './entities/Post';
+import { Profile } from './entities/Profile';
 import { Updoot } from './entities/Updoot';
 import { ResolverUser, User } from './entities/User';
 import { HelloResolver } from './resolvers/hello';
@@ -27,13 +28,14 @@ redisClient.connect().catch(console.error);
 const redis = new Redis(process.env.REDIS_URL);
 
 const main = async () => {
-  await createConnection({
+  const conn = await createConnection({
     type: 'postgres',
     url: process.env.DATABASE_URL,
     logging: true,
     synchronize: true,
-    entities: [User, Post, Updoot],
+    entities: [User, Post, Updoot, Profile],
   });
+  await conn.runMigrations();
 
   const app = express();
   app.use(

@@ -12,11 +12,14 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
   OneToMany,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Post } from './Post';
+import { Profile } from './Profile';
 import { Updoot } from './Updoot';
 
 @ObjectType()
@@ -37,6 +40,15 @@ export class User extends BaseEntity {
   @Field()
   @Column({ unique: true })
   username!: string;
+
+  @Field()
+  @OneToOne(() => Profile, (profile) => profile.user)
+  @JoinColumn()
+  profile: Profile;
+
+  @Field()
+  @Column({ nullable: true })
+  profileId?: number;
 
   @OneToMany(() => Updoot, (updoot) => updoot.user)
   updoots: Updoot[];
